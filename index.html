@@ -9,6 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <style>
 :root{--bg:#F7F6F2;--surface:#FFFFFF;--surface2:#F0EFE9;--border:#E2E0D8;--border2:#D0CEC4;--text:#1A1916;--text2:#6B6860;--text3:#9B9A95;--green:#3B6D11;--green-bg:#EAF3DE;--amber:#854F0B;--amber-bg:#FAEEDA;--red:#A32D2D;--red-bg:#FCEBEB;--radius:10px;--radius-sm:6px;--shadow:0 1px 3px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04);}
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -568,6 +569,58 @@ tr:hover td{background:#FAFAF7;}
   </div>
 </div>
 
+
+<!-- MODAL PARAMETRES EMAIL -->
+<div class="modal-overlay" id="modal-email-settings">
+  <div class="modal" style="width:440px">
+    <div class="modal-title">⚙️ Alertes email</div>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:16px">Configurez l'adresse qui recevra les alertes de stock bas. La configuration est sauvegardée pour toute l'équipe.</p>
+    <div class="form-group">
+      <label class="form-label">Adresse email du responsable</label>
+      <input class="form-input" id="email-dest" type="email" placeholder="responsable@engie.com">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Seuil de déclenchement email</label>
+      <div style="display:flex;align-items:center;gap:10px">
+        <input class="form-input" id="email-threshold" type="number" min="1" value="10" style="width:100px">
+        <span style="font-size:13px;color:var(--text2)">% du seuil d'alerte (ex: 100 = dès que seuil atteint)</span>
+      </div>
+    </div>
+    <div style="padding:12px 14px;background:var(--surface2);border-radius:var(--radius-sm);font-size:12px;color:var(--text3);margin-bottom:4px">
+      Un email est envoyé dès qu'un article passe sous son seuil d'alerte. Chaque article ne déclenche qu'un seul email par jour.
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-email-settings')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveEmailSettings()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20,6 9,17 4,12"/></svg>
+        Sauvegarder
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL ETIQUETTES -->
+<div class="modal-overlay" id="modal-labels">
+  <div class="modal" style="width:500px">
+    <div class="modal-title">🏷️ Imprimer les étiquettes QR</div>
+    <div class="form-group">
+      <label class="form-label">Filtrer par catégorie</label>
+      <select class="form-input" id="label-cat-filter" onchange="renderLabelPreview()">
+        <option value="all">Toutes les catégories</option>
+      </select>
+    </div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:12px" id="label-count"></div>
+    <div id="label-preview" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-height:320px;overflow-y:auto;padding:4px"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-labels')">Fermer</button>
+      <button class="btn btn-primary" onclick="printAllLabels()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,9 6,2 18,2 18,9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        Imprimer tout
+      </button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script type="module">
@@ -597,7 +650,7 @@ let subcategories = {
   'Sécurité': ['Signalisation','Balisage','Incendie','Premiers secours'],
   'Outillage': ['Électroportatif','Manuel','Mesure'],
 };
-let catFilter = 'Tous', subCatFilter = 'Tous', searchQ = '', moveType = 'in', histFilter = 'all', histTypeFilter = 'all';
+let catFilter = 'Tous', subCatFilter = 'Tous', searchQ = '', moveType = 'in', histFilter = 'all', histTypeFilter = 'all', histDateFilter = 'all';
 let comptageFilter = 'Tous';
 let quickArtId = null, quickType = null, deleteArtId = null, detailArtId = null;
 let imgBase64 = { 'new-img-base64': null, 'edit-img-base64': null };
@@ -772,7 +825,15 @@ function renderStock() {
         <td>${catPill(a.cat)}${a.subcat?'<br>'+subcatPill(a.subcat):''}</td>
         <td class="td-muted" style="font-size:12px">${a.loc||'—'}</td>
         <td class="td-num" style="font-weight:600">${a.qty}</td>
-        <td class="td-num td-muted hide-mobile">${a.seuil}</td>
+        <td class="td-num td-muted hide-mobile" onclick="event.stopPropagation()">
+          <input type="number" min="0" value="${a.seuil}" 
+            style="width:54px;padding:3px 6px;border:1px solid transparent;border-radius:4px;font-family:'DM Mono',monospace;font-size:13px;text-align:center;background:transparent;color:var(--text2);cursor:pointer"
+            title="Cliquer pour modifier le seuil"
+            onfocus="this.style.borderColor='var(--border2)';this.style.background='var(--surface)'"
+            onblur="this.style.borderColor='transparent';this.style.background='transparent';window.updateSeuil('${a.id}',this.value)"
+            onkeydown="if(event.key==='Enter')this.blur()"
+          >
+        </td>
         <td><span class="badge ${s.cls}">${s.label}</span></td>
         <td><div class="tbl-actions">
           <button class="tbl-btn plus"  onclick="window.openQuick('${a.id}','in')"  title="Entrée">+</button>
@@ -818,6 +879,19 @@ function renderHistory() {
   let f = history;
   if (histFilter!=='all') f=f.filter(h=>h.art===histFilter);
   if (histTypeFilter!=='all') f=f.filter(h=>h.type===histTypeFilter);
+  if (histDateFilter!=='all') {
+    const now=new Date(), today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+    const week=new Date(today); week.setDate(today.getDate()-today.getDay());
+    const month=new Date(now.getFullYear(),now.getMonth(),1);
+    f=f.filter(h=>{
+      const d=h.ts?(h.ts.toDate?h.ts.toDate():new Date(h.ts)):null;
+      if(!d) return false;
+      if(histDateFilter==='today') return d>=today;
+      if(histDateFilter==='week')  return d>=week;
+      if(histDateFilter==='month') return d>=month;
+      return true;
+    });
+  }
   document.getElementById('hist-count').textContent = `${f.length} entrée${f.length!==1?'s':''}`;
   document.getElementById('hist-tbody').innerHTML = f.map(h=>{
     let tl,tc,qc,ac;
@@ -878,6 +952,7 @@ window.filterStock   = q => { searchQ=q; renderStock(); };
 window.setCatFilter  = (c,el) => { catFilter=c; subCatFilter='Tous'; renderCatFilters(); renderStock(); };
 window.setHistFilter = v => { histFilter=v; renderHistory(); };
 window.setHistTypeFilter = v => { histTypeFilter=v; renderHistory(); };
+window.setHistDateFilter = v => { histDateFilter=v; renderHistory(); };
 window.setSubCatFilter = s => { subCatFilter=s; renderCatFilters(); renderStock(); };
 window.setComptageFilter = (c,el) => { comptageFilter=c; renderCatFilters(); renderComptage(); };
 window.setMoveType   = t => {
@@ -1137,15 +1212,37 @@ window.submitMove = async () => {
   await applyMove(art,moveType,qty,note); document.getElementById('mv-note').value='';
 };
 
-async function applyMove(art,type,qty,note) {
+async function applyMove(art,type,qty,note,skipConfirm=false) {
+  // Confirm big withdrawals (> 50% of current stock)
+  if (type==='out' && !skipConfirm && qty >= art.qty * 0.5 && qty > 5) {
+    const ok = confirm(`⚠️ Grosse sortie — vous retirez ${qty} unité${qty>1?'s':''} sur ${art.qty} en stock (${Math.round(qty/art.qty*100)}%)\n\nConfirmer ?`);
+    if (!ok) return;
+  }
   const newQty=type==='in'?art.qty+qty:art.qty-qty;
   try {
     const {id:_,...data}=art;
     await setDoc(doc(db,'articles',art.id),{...data,qty:newQty},{merge:true});
     await addDoc(collection(db,'history'),{art:art.name,cat:art.cat,type,qty,after:newQty,note:note||'',ts:serverTimestamp()});
     toast(type==='in'?`+${qty} ajouté${qty>1?'s':''} — ${art.name}`:`−${qty} retiré${qty>1?'s':''} — ${art.name}`,'success');
+    // Check if alert email needed
+    if (type==='out') {
+      const updatedArt = {...art, qty: newQty};
+      checkAndSendAlerts(updatedArt);
+    }
   } catch(e) { console.error(e); toast('Erreur : '+e.message,'error'); }
 }
+
+// ── INLINE SEUIL UPDATE ──
+window.updateSeuil = async (artId, val) => {
+  const seuil = Math.max(0, parseInt(val) || 0);
+  const art = articles.find(a => a.id === artId);
+  if (!art || art.seuil === seuil) return;
+  try {
+    const {id:_,...data} = art;
+    await setDoc(doc(db,'articles',artId), {...data, seuil}, {merge:true});
+    toast(`Seuil mis à jour — ${art.name}`, 'success');
+  } catch(e) { toast('Erreur: '+e.message,'error'); }
+};
 
 // ── DELETE ──
 window.confirmDelete = (artId,artName) => { deleteArtId=artId; document.getElementById('delete-art-name').textContent=artName; document.getElementById('modal-delete').classList.add('open'); };
@@ -1237,6 +1334,141 @@ window.submitDetailMove = async (artId) => {
   closeModal('modal-detail');
 };
 
+// ── EMAIL ALERTS ──
+const EMAILJS_SERVICE  = 'service_eq6lghi';
+const EMAILJS_TEMPLATE = 'template_2u34icz';
+const EMAILJS_KEY      = 'qlZ09TvuPFSZbLFbd';
+let emailSettings = { dest: '', threshold: 100, alertedToday: {} };
+
+async function loadEmailSettings() {
+  try {
+    const snap = await getDocs(collection(db, 'settings'));
+    snap.forEach(d => {
+      if (d.id === 'emailSettings') {
+        const data = d.data();
+        emailSettings = { ...emailSettings, ...data };
+        // Reset alertedToday if it's a new day
+        const today = new Date().toDateString();
+        if (emailSettings.lastDay !== today) {
+          emailSettings.alertedToday = {};
+          emailSettings.lastDay = today;
+        }
+      }
+    });
+  } catch(e) { console.warn('loadEmailSettings:', e); }
+}
+
+async function saveEmailSettingsToDb() {
+  try {
+    await setDoc(doc(db, 'settings', 'emailSettings'), emailSettings);
+  } catch(e) { console.warn('saveEmailSettings:', e); }
+}
+
+window.openEmailSettings = () => {
+  document.getElementById('email-dest').value = emailSettings.dest || '';
+  document.getElementById('email-threshold').value = emailSettings.threshold || 100;
+  document.getElementById('modal-email-settings').classList.add('open');
+};
+
+window.saveEmailSettings = async () => {
+  const dest = document.getElementById('email-dest').value.trim();
+  const threshold = parseInt(document.getElementById('email-threshold').value) || 100;
+  if (!dest) { toast('Email requis', 'error'); return; }
+  emailSettings.dest = dest;
+  emailSettings.threshold = threshold;
+  await saveEmailSettingsToDb();
+  closeModal('modal-email-settings');
+  toast('Configuration email sauvegardée ✓', 'success');
+};
+
+async function checkAndSendAlerts(art) {
+  if (!emailSettings.dest) return;
+  if (art.qty > art.seuil) return; // not in alert
+  const alertKey = art.id + '_' + new Date().toDateString();
+  if (emailSettings.alertedToday[alertKey]) return; // already sent today
+  try {
+    emailjs.init(EMAILJS_KEY);
+    await emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
+      article_name: art.name,
+      article_cat:  art.cat + (art.subcat ? ' > ' + art.subcat : ''),
+      article_qty:  art.qty,
+      article_seuil: art.seuil,
+      article_loc:  art.loc || 'Non renseignée',
+      to_email:     emailSettings.dest,
+    });
+    emailSettings.alertedToday[alertKey] = true;
+    await saveEmailSettingsToDb();
+    console.log('Alert email sent for', art.name);
+  } catch(e) { console.warn('Email send failed:', e); }
+}
+
+// ── LABELS ──
+window.openLabelsModal = () => {
+  const sel = document.getElementById('label-cat-filter');
+  sel.innerHTML = '<option value="all">Toutes les catégories</option>' +
+    categories.map(c => `<option value="${c}">${c}</option>`).join('');
+  renderLabelPreview();
+  document.getElementById('modal-labels').classList.add('open');
+};
+
+window.renderLabelPreview = () => {
+  const cat = document.getElementById('label-cat-filter').value;
+  const rows = cat === 'all' ? articles : articles.filter(a => a.cat === cat);
+  document.getElementById('label-count').textContent = `${rows.length} article${rows.length!==1?'s':''}`;
+  document.getElementById('label-preview').innerHTML = rows.map(a => `
+    <div style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;text-align:center;background:var(--surface)">
+      <div style="font-size:11px;font-weight:600;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.name}</div>
+      <div style="font-size:10px;color:var(--text3);margin-bottom:6px">${a.cat}${a.subcat?' > '+a.subcat:''}</div>
+      <div id="lbl-qr-${a.id}" style="display:inline-block"></div>
+    </div>`).join('');
+  // Render QR codes
+  rows.forEach(a => {
+    const el = document.getElementById('lbl-qr-'+a.id);
+    if (el) {
+      el.innerHTML = '';
+      try { new QRCode(el, {text:'https://stocklocal-ssi.github.io/stocklocal1?id='+a.id, width:80, height:80, colorDark:'#1A1916', colorLight:'#FFFFFF'}); }
+      catch(e) {}
+    }
+  });
+};
+
+window.printAllLabels = () => {
+  const cat = document.getElementById('label-cat-filter').value;
+  const rows = cat === 'all' ? articles : articles.filter(a => a.cat === cat);
+  const w = window.open('', '_blank');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <title>Étiquettes StockLocal</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>
+    <style>
+      *{box-sizing:border-box;margin:0;padding:0;}
+      body{font-family:sans-serif;padding:10mm;}
+      .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5mm;}
+      .label{border:1px solid #ccc;border-radius:4px;padding:6px;text-align:center;break-inside:avoid;}
+      .name{font-size:9px;font-weight:700;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+      .cat{font-size:8px;color:#666;margin-bottom:4px;}
+      .loc{font-size:8px;color:#999;margin-top:3px;}
+      .stock{font-size:8px;font-weight:600;margin-top:2px;}
+      @media print{@page{margin:10mm}}
+    </style>
+  </head><body>
+    <div class="grid">
+      ${rows.map(a=>`<div class="label">
+        <div class="name">${a.name}</div>
+        <div class="cat">${a.cat}${a.subcat?' > '+a.subcat:''}</div>
+        <div id="pqr-${a.id}"></div>
+        <div class="loc">${a.loc||'—'}</div>
+        <div class="stock">Stock: ${a.qty}</div>
+      </div>`).join('')}
+    </div>
+    <script>
+      ${rows.map(a=>`new QRCode(document.getElementById('pqr-${a.id}'),{text:'https://stocklocal-ssi.github.io/stocklocal1?id=${a.id}',width:70,height:70,colorDark:'#000',colorLight:'#fff'});`).join('
+')}
+      setTimeout(()=>{window.print();},800);
+    <\/script>
+  </body></html>`);
+  w.document.close();
+};
+
 // ── TOAST ──
 let toastTimer;
 window.toast = (msg,type='') => {
@@ -1247,7 +1479,7 @@ window.toast = (msg,type='') => {
 // ── MODALS BACKDROP ──
 // Use mousedown to record where the click started.
 // Only close if BOTH mousedown AND mouseup land on the overlay itself.
-['modal-add','modal-edit','modal-quick','modal-delete','modal-detail'].forEach(id=>{
+['modal-add','modal-edit','modal-quick','modal-delete','modal-detail','modal-email-settings','modal-labels'].forEach(id=>{
   const overlay = document.getElementById(id);
   let downOnOverlay = false;
   overlay.addEventListener('mousedown', e => { downOnOverlay = e.target === overlay; });
@@ -1263,6 +1495,7 @@ window.toast = (msg,type='') => {
 // ── INIT ──
 seedIfEmpty().then(async () => {
   await loadSubcategories();
+  await loadEmailSettings();
   startListeners();
   // After articles load, check for ?id= param and open the matching article
   const urlId = new URLSearchParams(window.location.search).get('id');
