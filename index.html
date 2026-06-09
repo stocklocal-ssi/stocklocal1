@@ -635,6 +635,25 @@ function artThumb(art, size=34) {
 }
 
 // ── FIREBASE ──
+async function seedIfEmpty() {
+  try {
+    const snap = await getDocs(collection(db, 'articles'));
+    if (!snap.empty) return;
+    const defaults = [
+      {name:'Gants EPI nitrile M',cat:'EPI',subcat:'Mains',qty:2,seuil:10,loc:'',img:''},
+      {name:'Gants EPI nitrile L',cat:'EPI',subcat:'Mains',qty:18,seuil:10,loc:'',img:''},
+      {name:'Casques de chantier',cat:'EPI',subcat:'Tête',qty:5,seuil:8,loc:'',img:''},
+      {name:'Lunettes de protection',cat:'EPI',subcat:'Yeux',qty:22,seuil:5,loc:'',img:''},
+      {name:'Câble électrique 2.5mm',cat:'Électricité',subcat:'Câblage',qty:250,seuil:50,loc:'',img:''},
+      {name:'Disjoncteur 16A',cat:'Électricité',subcat:'Protection',qty:12,seuil:5,loc:'',img:''},
+      {name:'Vis M6 inox',cat:'Visserie',subcat:'Vis',qty:350,seuil:100,loc:'',img:''},
+      {name:'Ruban de signalisation',cat:'Sécurité',subcat:'Signalisation',qty:4,seuil:6,loc:'',img:''},
+      {name:'Perceuse à colonne',cat:'Outillage',subcat:'Électroportatif',qty:2,seuil:1,loc:'',img:''},
+    ];
+    for (const a of defaults) await addDoc(collection(db, 'articles'), a);
+  } catch(e) { console.warn('seedIfEmpty:', e); }
+}
+
 function startListeners() {
   onSnapshot(collection(db,'articles'), snap => {
     articles = snap.docs.map(d => ({id:d.id,...d.data()})).sort((a,b)=>a.name.localeCompare(b.name));
