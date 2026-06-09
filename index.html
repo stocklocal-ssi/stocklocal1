@@ -654,6 +654,29 @@ async function seedIfEmpty() {
   } catch(e) { console.warn('seedIfEmpty:', e); }
 }
 
+async function loadSubcategories() {
+  try {
+    const snap = await getDocs(collection(db, 'settings'));
+    snap.forEach(d => {
+      if (d.id === 'subcategories') {
+        const data = d.data();
+        Object.keys(data).forEach(cat => {
+          if (Array.isArray(data[cat])) {
+            subcategories[cat] = data[cat];
+            if (!categories.includes(cat)) categories.push(cat);
+          }
+        });
+      }
+    });
+  } catch(e) { console.warn('loadSubcategories:', e); }
+}
+
+async function saveSubcategories() {
+  try {
+    await setDoc(doc(db, 'settings', 'subcategories'), subcategories);
+  } catch(e) { console.warn('saveSubcategories:', e); }
+}
+
 function startListeners() {
   onSnapshot(collection(db,'articles'), snap => {
     articles = snap.docs.map(d => ({id:d.id,...d.data()})).sort((a,b)=>a.name.localeCompare(b.name));
@@ -933,6 +956,7 @@ window.confirmNewSubcat = () => {
   fillSubcatSelect('new-subcat', cat, name);
   document.getElementById('new-subcat').value = name;
   cancelNewSubcat();
+  saveSubcategories();
   toast(`Sous-catégorie "${name}" créée`,'success');
 };
 window.toggleEditSubcat = () => { document.getElementById('edit-subcat-row').classList.toggle('visible'); };
@@ -946,6 +970,7 @@ window.confirmEditSubcat = () => {
   fillSubcatSelect('edit-subcat', cat, name);
   document.getElementById('edit-subcat').value = name;
   cancelEditSubcat();
+  saveSubcategories();
   toast(`Sous-catégorie "${name}" créée`,'success');
 };
 
@@ -954,14 +979,14 @@ window.cancelNewCat = () => { document.getElementById('new-cat-row').classList.r
 window.confirmNewCat = () => {
   const name=document.getElementById('new-cat-name').value.trim();
   if (!name||categories.includes(name)) { toast(categories.includes(name)?'Catégorie existante':'Nom requis','error'); return; }
-  categories.push(name); fillCatSelect('new-cat'); document.getElementById('new-cat').value=name; cancelNewCat(); toast(`Catégorie "${name}" créée`,'success');
+  categories.push(name); if(!subcategories[name]) subcategories[name]=[]; fillCatSelect('new-cat'); document.getElementById('new-cat').value=name; cancelNewCat(); saveSubcategories(); toast(`Catégorie "${name}" créée`,'success');
 };
 window.toggleNewCatEdit = () => { document.getElementById('new-cat-row-edit').classList.toggle('visible'); };
 window.cancelNewCatEdit = () => { document.getElementById('new-cat-row-edit').classList.remove('visible'); document.getElementById('new-cat-name-edit').value=''; };
 window.confirmNewCatEdit = () => {
   const name=document.getElementById('new-cat-name-edit').value.trim();
   if (!name||categories.includes(name)) { toast(categories.includes(name)?'Catégorie existante':'Nom requis','error'); return; }
-  categories.push(name); fillCatSelect('edit-cat'); document.getElementById('edit-cat').value=name; cancelNewCatEdit(); toast(`Catégorie "${name}" créée`,'success');
+  categories.push(name); if(!subcategories[name]) subcategories[name]=[]; fillCatSelect('edit-cat'); document.getElementById('edit-cat').value=name; cancelNewCatEdit(); saveSubcategories(); toast(`Catégorie "${name}" créée`,'success');
 };
 
 // ── ADD ARTICLE ──
@@ -1236,7 +1261,8 @@ window.toast = (msg,type='') => {
 });
 
 // ── INIT ──
-seedIfEmpty().then(() => {
+seedIfEmpty().then(async () => {
+  await loadSubcategories();
   startListeners();
   // After articles load, check for ?id= param and open the matching article
   const urlId = new URLSearchParams(window.location.search).get('id');
