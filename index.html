@@ -1179,7 +1179,7 @@ window.printQR = () => {
     <h2>${art?.name||''}</h2>
     <p>${art?.cat||''} — ${art?.loc||''}</p>
     ${qr.innerHTML}
-    <script>window.print();window.close();<\/script>
+    <scr'+'ipt>window.print();window.close();</scr'+'ipt>
   </body></html>`);
   w.document.close();
 };
@@ -1438,7 +1438,7 @@ window.printAllLabels = () => {
   const w = window.open('', '_blank');
   w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
     <title>Étiquettes StockLocal</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></scr'+'ipt>
     <style>
       *{box-sizing:border-box;margin:0;padding:0;}
       body{font-family:sans-serif;padding:10mm;}
@@ -1464,7 +1464,7 @@ window.printAllLabels = () => {
       ${rows.map(a=>`new QRCode(document.getElementById('pqr-${a.id}'),{text:'https://stocklocal-ssi.github.io/stocklocal1?id=${a.id}',width:70,height:70,colorDark:'#000',colorLight:'#fff'});`).join('
 ')}
       setTimeout(()=>{window.print();},800);
-    <\/script>
+    </scr'+'ipt>
   </body></html>`);
   w.document.close();
 };
