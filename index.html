@@ -1171,17 +1171,13 @@ window.openDetail = artId => {
 
 window.openEditFromDetail = () => { if (detailArtId) window.openEdit(detailArtId); };
 window.printQR = () => {
-  const qr=document.getElementById('qr-container');
-  if (!qr) return;
-  const art=articles.find(a=>a.id===detailArtId);
-  const w=window.open('','_blank');
-  w.document.write(`<html><body style="text-align:center;font-family:sans-serif;padding:20px">
-    <h2>${art?.name||''}</h2>
-    <p>${art?.cat||''} — ${art?.loc||''}</p>
-    ${qr.innerHTML}
-    <scr'+'ipt>window.print();window.close();</scr'+'ipt>
-  </body></html>`);
+  const art = articles.find(a => a.id === detailArtId);
+  if (!art) return;
+  const w = window.open('', '_blank');
+  const url = 'https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=' + encodeURIComponent('https://stocklocal-ssi.github.io/stocklocal1?id='+art.id);
+  w.document.write('<html><body style="text-align:center;font-family:sans-serif;padding:20px"><h2>'+art.name+'</h2><p>'+art.cat+(art.subcat?' &gt; '+art.subcat:'')+'</p><p style="color:#999">'+(art.loc||'')+'</p><img src="'+url+'" width="160" height="160"><p style="font-size:11px;color:#999;margin-top:8px">Scanner pour accès direct</p></body></html>');
   w.document.close();
+  setTimeout(() => w.print(), 800);
 };
 
 // ── QUICK MOVE ──
@@ -1436,37 +1432,26 @@ window.printAllLabels = () => {
   const cat = document.getElementById('label-cat-filter').value;
   const rows = cat === 'all' ? articles : articles.filter(a => a.cat === cat);
   const w = window.open('', '_blank');
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
-    <title>Étiquettes StockLocal</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></scr'+'ipt>
-    <style>
-      *{box-sizing:border-box;margin:0;padding:0;}
-      body{font-family:sans-serif;padding:10mm;}
-      .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5mm;}
-      .label{border:1px solid #ccc;border-radius:4px;padding:6px;text-align:center;break-inside:avoid;}
-      .name{font-size:9px;font-weight:700;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-      .cat{font-size:8px;color:#666;margin-bottom:4px;}
-      .loc{font-size:8px;color:#999;margin-top:3px;}
-      .stock{font-size:8px;font-weight:600;margin-top:2px;}
-      @media print{@page{margin:10mm}}
-    </style>
-  </head><body>
-    <div class="grid">
-      ${rows.map(a=>`<div class="label">
-        <div class="name">${a.name}</div>
-        <div class="cat">${a.cat}${a.subcat?' > '+a.subcat:''}</div>
-        <div id="pqr-${a.id}"></div>
-        <div class="loc">${a.loc||'—'}</div>
-        <div class="stock">Stock: ${a.qty}</div>
-      </div>`).join('')}
-    </div>
-    <script>
-      ${rows.map(a=>`new QRCode(document.getElementById('pqr-${a.id}'),{text:'https://stocklocal-ssi.github.io/stocklocal1?id=${a.id}',width:70,height:70,colorDark:'#000',colorLight:'#fff'});`).join('
-')}
-      setTimeout(()=>{window.print();},800);
-    </scr'+'ipt>
-  </body></html>`);
-  w.document.close();
+  const d = w.document;
+  d.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Etiquettes</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:sans-serif;padding:10mm}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5mm}.label{border:1px solid #ccc;border-radius:4px;padding:6px;text-align:center;break-inside:avoid}.name{font-size:9px;font-weight:700;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cat{font-size:8px;color:#666;margin-bottom:4px}.loc{font-size:8px;color:#999;margin-top:3px}.stock{font-size:8px;font-weight:600;margin-top:2px}@media print{@page{margin:10mm}}</style></head><body><div class="grid">');
+  rows.forEach(a => {
+    d.write('<div class="label"><div class="name">'+a.name+'</div><div class="cat">'+a.cat+(a.subcat?' &gt; '+a.subcat:'')+'</div><canvas id="pqr-'+a.id+'" width="70" height="70"></canvas><div class="loc">'+(a.loc||'—')+'</div><div class="stock">Stock: '+a.qty+'</div></div>');
+  });
+  d.write('</div></body></html>');
+  d.close();
+  // Use QR via URL API — no script tag needed
+  const BASE = 'https://api.qrserver.com/v1/create-qr-code/?size=70x70&data=';
+  const imgs = w.document.querySelectorAll ? [] : [];
+  rows.forEach(a => {
+    const el = w.document.getElementById('pqr-'+a.id);
+    if (el) {
+      const img = w.document.createElement('img');
+      img.src = BASE + encodeURIComponent('https://stocklocal-ssi.github.io/stocklocal1?id='+a.id);
+      img.width = 70; img.height = 70;
+      el.parentNode.replaceChild(img, el);
+    }
+  });
+  setTimeout(() => w.print(), 1200);
 };
 
 // ── TOAST ──
