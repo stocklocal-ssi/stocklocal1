@@ -941,7 +941,7 @@ window.openDetail = artId => {
     </div>`;
   document.getElementById('modal-detail').classList.add('open');
   // Generate QR — wait for DOM then render
-  const qrText = 'https://paullbcjulien.github.io/stocklocal';
+  const qrText = 'https://stocklocal-ssi.github.io/stocklocal1?id=' + art.id;
   function tryRenderQR(attempts) {
     const el = document.getElementById('qr-container');
     if (!el) {
@@ -1098,7 +1098,21 @@ window.toast = (msg,type='') => {
 });
 
 // ── INIT ──
-seedIfEmpty().then(startListeners);
+seedIfEmpty().then(() => {
+  startListeners();
+  // After articles load, check for ?id= param and open the matching article
+  const urlId = new URLSearchParams(window.location.search).get('id');
+  if (urlId) {
+    // Wait for articles to be loaded from Firestore
+    const unsub = onSnapshot(collection(db, 'articles'), snap => {
+      const art = snap.docs.find(d => d.id === urlId);
+      if (art) {
+        unsub(); // stop listening once found
+        setTimeout(() => window.openDetail(urlId), 400);
+      }
+    });
+  }
+});
 </script>
 </body>
 </html>
