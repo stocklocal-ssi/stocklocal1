@@ -733,14 +733,28 @@ tr:hover td{background:#FAFAF7;}
 <div class="modal-overlay" id="modal-labels">
   <div class="modal" style="width:500px">
     <div class="modal-title">🏷️ Imprimer les étiquettes QR</div>
-    <div class="form-group">
-      <label class="form-label">Filtrer par catégorie</label>
-      <select class="form-input" id="label-cat-filter" onchange="renderLabelPreview()">
-        <option value="all">Toutes les catégories</option>
+    <div class="form-row" style="margin-bottom:10px">
+      <div class="form-group" style="margin:0">
+        <label class="form-label">Catégorie</label>
+        <select class="form-input" id="label-cat-filter" onchange="updateLabelSubcatFilter()">
+          <option value="all">Toutes</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin:0" id="label-subcat-group" style="display:none">
+        <label class="form-label">Sous-catégorie</label>
+        <select class="form-input" id="label-subcat-filter" onchange="updateLabelSubtypeFilter()">
+          <option value="all">Toutes</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group" id="label-subtype-group" style="display:none;margin-bottom:10px">
+      <label class="form-label">Type</label>
+      <select class="form-input" id="label-subtype-filter" onchange="renderLabelPreview()">
+        <option value="all">Tous</option>
       </select>
     </div>
     <div style="font-size:12px;color:var(--text3);margin-bottom:12px" id="label-count"></div>
-    <div id="label-preview" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-height:320px;overflow-y:auto;padding:4px"></div>
+    <div id="label-preview" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-height:280px;overflow-y:auto;padding:4px"></div>
     <div class="modal-footer">
       <button class="btn" onclick="closeModal('modal-labels')">Fermer</button>
       <button class="btn btn-primary" onclick="printAllLabels()">
@@ -1859,15 +1873,48 @@ async function checkAndSendAlerts(art) {
 // ── LABELS ──
 window.openLabelsModal = () => {
   const sel = document.getElementById('label-cat-filter');
-  sel.innerHTML = '<option value="all">Toutes les catégories</option>' +
+  sel.innerHTML = '<option value="all">Toutes</option>' +
     categories.map(c => `<option value="${c}">${c}</option>`).join('');
+  document.getElementById('label-subcat-group').style.display = 'none';
+  document.getElementById('label-subtype-group').style.display = 'none';
   renderLabelPreview();
   document.getElementById('modal-labels').classList.add('open');
 };
 
-window.renderLabelPreview = () => {
+window.updateLabelSubcatFilter = () => {
   const cat = document.getElementById('label-cat-filter').value;
-  const rows = cat === 'all' ? articles : articles.filter(a => a.cat === cat);
+  const subcatSel = document.getElementById('label-subcat-filter');
+  const subs = cat !== 'all' && subcategories[cat] ? subcategories[cat] : [];
+  subcatSel.innerHTML = '<option value="all">Toutes</option>' +
+    subs.map(s => `<option value="${s}">${s}</option>`).join('');
+  document.getElementById('label-subcat-group').style.display = subs.length ? 'block' : 'none';
+  document.getElementById('label-subtype-group').style.display = 'none';
+  renderLabelPreview();
+};
+
+window.updateLabelSubtypeFilter = () => {
+  const cat    = document.getElementById('label-cat-filter').value;
+  const subcat = document.getElementById('label-subcat-filter').value;
+  const subtypeSel = document.getElementById('label-subtype-filter');
+  const key = cat + '|' + subcat;
+  const types = subcat !== 'all' && subtypes[key] ? subtypes[key] : [];
+  subtypeSel.innerHTML = '<option value="all">Tous</option>' +
+    types.map(t => `<option value="${t}">${t}</option>`).join('');
+  document.getElementById('label-subtype-group').style.display = (subcat !== 'all' && types.length) ? 'block' : 'none';
+  renderLabelPreview();
+};
+
+window.renderLabelPreview = () => {
+  const cat    = document.getElementById('label-cat-filter').value;
+  const subcatEl = document.getElementById('label-subcat-filter');
+  const subcat = subcatEl ? subcatEl.value : 'all';
+  const subtypeEl = document.getElementById('label-subtype-filter');
+  const subtype = subtypeEl ? subtypeEl.value : 'all';
+  const rows = articles.filter(a =>
+    (cat === 'all'    || a.cat === cat) &&
+    (subcat === 'all' || a.subcat === subcat) &&
+    (subtype === 'all'|| a.subtype === subtype)
+  );
   document.getElementById('label-count').textContent = `${rows.length} article${rows.length!==1?'s':''}`;
   document.getElementById('label-preview').innerHTML = rows.map(a => `
     <div style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;text-align:center;background:var(--surface)">
@@ -1887,8 +1934,16 @@ window.renderLabelPreview = () => {
 };
 
 window.printAllLabels = () => {
-  const cat = document.getElementById('label-cat-filter').value;
-  const rows = cat === 'all' ? articles : articles.filter(a => a.cat === cat);
+  const cat    = document.getElementById('label-cat-filter').value;
+  const subcatEl = document.getElementById('label-subcat-filter');
+  const subcat = subcatEl ? subcatEl.value : 'all';
+  const subtypeEl = document.getElementById('label-subtype-filter');
+  const subtype = subtypeEl ? subtypeEl.value : 'all';
+  const rows = articles.filter(a =>
+    (cat === 'all'    || a.cat === cat) &&
+    (subcat === 'all' || a.subcat === subcat) &&
+    (subtype === 'all'|| a.subtype === subtype)
+  );
   const w = window.open('', '_blank');
   const d = w.document;
   d.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Etiquettes</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:sans-serif;padding:10mm}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5mm}.label{border:1px solid #ccc;border-radius:4px;padding:6px;text-align:center;break-inside:avoid}.name{font-size:9px;font-weight:700;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cat{font-size:8px;color:#666;margin-bottom:4px}.loc{font-size:8px;color:#999;margin-top:3px}.stock{font-size:8px;font-weight:600;margin-top:2px}@media print{@page{margin:10mm}}</style></head><body><div class="grid">');
