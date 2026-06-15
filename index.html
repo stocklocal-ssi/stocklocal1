@@ -781,7 +781,6 @@ tr:hover td{background:#FAFAF7;}
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, collection, doc, onSnapshot, setDoc, addDoc, deleteDoc, getDocs, query, orderBy, limit, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAE27DVKVEwf6nHFHUwSGgOasGXUpWvjI0",
@@ -792,9 +791,8 @@ const firebaseConfig = {
   appId: "1:896954840569:web:4375d295900a05118bf928"
 };
 
-const app  = initializeApp(firebaseConfig);
-const db   = getFirestore(app);
-const auth = getAuth(app);
+const app = initializeApp(firebaseConfig);
+const db  = getFirestore(app);
 
 // ── STATE ──
 let articles = [], history = [];
@@ -2175,28 +2173,15 @@ window.toast = (msg,type='') => {
 });
 
 // ── INIT ──
-// Wait for auth state confirmed before any Firestore call
-onAuthStateChanged(auth, async (user) => {
-  if (user) {
-    // Token ready — safe to hit Firestore
-    await seedIfEmpty();
-    await loadSubcategories();
-    await loadEmailSettings();
-    startListeners();
-    const urlId = new URLSearchParams(window.location.search).get('id');
-    if (urlId) {
-      const unsub = onSnapshot(collection(db, 'articles'), snap => {
-        const art = snap.docs.find(d => d.id === urlId);
-        if (art) { unsub(); setTimeout(() => window.openDetail(urlId), 400); }
-      });
-    }
-  } else {
-    // No session yet — sign in anonymously
-    signInAnonymously(auth).catch(e => {
-      console.error('Auth:', e);
-      document.getElementById('sync-label').textContent = 'Erreur auth';
-      document.getElementById('sync-dot').className = 'sync-dot error';
-      document.getElementById('loading-screen').classList.add('hidden');
+seedIfEmpty().then(async () => {
+  await loadSubcategories();
+  await loadEmailSettings();
+  startListeners();
+  const urlId = new URLSearchParams(window.location.search).get('id');
+  if (urlId) {
+    const unsub = onSnapshot(collection(db, 'articles'), snap => {
+      const art = snap.docs.find(d => d.id === urlId);
+      if (art) { unsub(); setTimeout(() => window.openDetail(urlId), 400); }
     });
   }
 });
