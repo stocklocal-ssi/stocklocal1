@@ -755,11 +755,22 @@ tr:hover td{background:#FAFAF7;}
     </div>
     <div style="font-size:12px;color:var(--text3);margin-bottom:12px" id="label-count"></div>
     <div id="label-preview" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-height:280px;overflow-y:auto;padding:4px"></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:8px 12px;background:var(--surface2);border-radius:var(--radius-sm);font-size:13px">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:500">
+        <input type="checkbox" id="label-select-all" onchange="toggleSelectAllLabels(this.checked)" style="width:15px;height:15px;cursor:pointer">
+        Tout sélectionner
+      </label>
+      <span style="margin-left:auto;color:var(--text3)" id="label-selected-count">0 sélectionné(s)</span>
+    </div>
     <div class="modal-footer">
       <button class="btn" onclick="closeModal('modal-labels')">Fermer</button>
-      <button class="btn btn-primary" onclick="printAllLabels()">
+      <button class="btn" onclick="printAllLabels(false)">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,9 6,2 18,2 18,9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-        Imprimer tout
+        Tout imprimer
+      </button>
+      <button class="btn btn-primary" onclick="printAllLabels(true)">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,9 6,2 18,2 18,9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        Imprimer la sélection
       </button>
     </div>
   </div>
@@ -1916,34 +1927,86 @@ window.renderLabelPreview = () => {
     (subtype === 'all'|| a.subtype === subtype)
   );
   document.getElementById('label-count').textContent = `${rows.length} article${rows.length!==1?'s':''}`;
+  // Reset select all checkbox
+  const selAll = document.getElementById('label-select-all');
+  if (selAll) selAll.checked = false;
+  document.getElementById('label-selected-count').textContent = '0 sélectionné(s)';
+
   document.getElementById('label-preview').innerHTML = rows.map(a => `
-    <div style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;text-align:center;background:var(--surface)">
-      <div style="font-size:11px;font-weight:600;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.name}</div>
-      <div style="font-size:10px;color:var(--text3);margin-bottom:6px">${a.cat}${a.subcat?' > '+a.subcat:''}</div>
+    <div id="lbl-card-${a.id}" onclick="toggleLabelSelect('${a.id}')" style="border:2px solid var(--border);border-radius:var(--radius-sm);padding:10px;text-align:center;background:var(--surface);cursor:pointer;transition:all 0.12s;position:relative">
+      <input type="checkbox" id="lbl-chk-${a.id}" class="lbl-check" data-id="${a.id}" onclick="event.stopPropagation();updateLabelCount()" style="position:absolute;top:6px;left:6px;width:15px;height:15px;cursor:pointer">
+      <div style="font-size:11px;font-weight:600;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.name}</div>
+      <div style="font-size:10px;color:var(--text3);margin-bottom:6px">${a.cat}${a.subcat?' > '+a.subcat:''}${a.subtype?' > '+a.subtype:''}</div>
       <div id="lbl-qr-${a.id}" style="display:inline-block"></div>
     </div>`).join('');
+
   // Render QR codes
   rows.forEach(a => {
     const el = document.getElementById('lbl-qr-'+a.id);
     if (el) {
       el.innerHTML = '';
-      try { new QRCode(el, {text:'https://stocklocal-ssi.github.io/stocklocal1?id='+a.id, width:80, height:80, colorDark:'#1A1916', colorLight:'#FFFFFF'}); }
+      try { new QRCode(el, {text:'https://stocklocal-ssi.github.io/stocklocal1?id='+a.id, width:72, height:72, colorDark:'#1A1916', colorLight:'#FFFFFF'}); }
       catch(e) {}
     }
   });
 };
 
-window.printAllLabels = () => {
+window.toggleLabelSelect = (id) => {
+  const chk = document.getElementById('lbl-chk-'+id);
+  const card = document.getElementById('lbl-card-'+id);
+  if (!chk) return;
+  chk.checked = !chk.checked;
+  card.style.borderColor = chk.checked ? '#185FA5' : 'var(--border)';
+  card.style.background  = chk.checked ? '#E6F1FB' : 'var(--surface)';
+  updateLabelCount();
+};
+
+window.updateLabelCount = () => {
+  const all = document.querySelectorAll('.lbl-check');
+  const checked = [...all].filter(c => c.checked);
+  document.getElementById('label-selected-count').textContent = checked.length + ' sélectionné(s)';
+  // Update card style
+  all.forEach(c => {
+    const card = document.getElementById('lbl-card-'+c.dataset.id);
+    if (card) {
+      card.style.borderColor = c.checked ? '#185FA5' : 'var(--border)';
+      card.style.background  = c.checked ? '#E6F1FB' : 'var(--surface)';
+    }
+  });
+  // Update select all state
+  const selAll = document.getElementById('label-select-all');
+  if (selAll) selAll.checked = checked.length === all.length && all.length > 0;
+};
+
+window.toggleSelectAllLabels = (checked) => {
+  document.querySelectorAll('.lbl-check').forEach(c => {
+    c.checked = checked;
+    const card = document.getElementById('lbl-card-'+c.dataset.id);
+    if (card) {
+      card.style.borderColor = checked ? '#185FA5' : 'var(--border)';
+      card.style.background  = checked ? '#E6F1FB' : 'var(--surface)';
+    }
+  });
+  const all = document.querySelectorAll('.lbl-check');
+  document.getElementById('label-selected-count').textContent = (checked ? all.length : 0) + ' sélectionné(s)';
+};
+
+window.printAllLabels = (selectionOnly=false) => {
   const cat    = document.getElementById('label-cat-filter').value;
   const subcatEl = document.getElementById('label-subcat-filter');
   const subcat = subcatEl ? subcatEl.value : 'all';
   const subtypeEl = document.getElementById('label-subtype-filter');
   const subtype = subtypeEl ? subtypeEl.value : 'all';
-  const rows = articles.filter(a =>
+  let rows = articles.filter(a =>
     (cat === 'all'    || a.cat === cat) &&
     (subcat === 'all' || a.subcat === subcat) &&
     (subtype === 'all'|| a.subtype === subtype)
   );
+  if (selectionOnly) {
+    const selectedIds = [...document.querySelectorAll('.lbl-check:checked')].map(c => c.dataset.id);
+    if (!selectedIds.length) { toast('Aucune étiquette sélectionnée','error'); return; }
+    rows = rows.filter(a => selectedIds.includes(a.id));
+  }
   const w = window.open('', '_blank');
   const d = w.document;
   d.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Etiquettes</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:sans-serif;padding:10mm}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5mm}.label{border:1px solid #ccc;border-radius:4px;padding:6px;text-align:center;break-inside:avoid}.name{font-size:9px;font-weight:700;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cat{font-size:8px;color:#666;margin-bottom:4px}.loc{font-size:8px;color:#999;margin-top:3px}.stock{font-size:8px;font-weight:600;margin-top:2px}@media print{@page{margin:10mm}}</style></head><body><div class="grid">');
