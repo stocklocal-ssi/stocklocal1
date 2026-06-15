@@ -2175,20 +2175,28 @@ window.toast = (msg,type='') => {
 });
 
 // ── INIT ──
-seedIfEmpty().then(async () => {
-  await loadSubcategories();
-  await loadEmailSettings();
-  startListeners();
-  // After articles load, check for ?id= param and open the matching article
-  const urlId = new URLSearchParams(window.location.search).get('id');
-  if (urlId) {
-    // Wait for articles to be loaded from Firestore
-    const unsub = onSnapshot(collection(db, 'articles'), snap => {
-      const art = snap.docs.find(d => d.id === urlId);
-      if (art) {
-        unsub(); // stop listening once found
-        setTimeout(() => window.openDetail(urlId), 400);
-      }
+// Wait for auth state confirmed before any Firestore call
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
+    // Token ready — safe to hit Firestore
+    await seedIfEmpty();
+    await loadSubcategories();
+    await loadEmailSettings();
+    startListeners();
+    const urlId = new URLSearchParams(window.location.search).get('id');
+    if (urlId) {
+      const unsub = onSnapshot(collection(db, 'articles'), snap => {
+        const art = snap.docs.find(d => d.id === urlId);
+        if (art) { unsub(); setTimeout(() => window.openDetail(urlId), 400); }
+      });
+    }
+  } else {
+    // No session yet — sign in anonymously
+    signInAnonymously(auth).catch(e => {
+      console.error('Auth:', e);
+      document.getElementById('sync-label').textContent = 'Erreur auth';
+      document.getElementById('sync-dot').className = 'sync-dot error';
+      document.getElementById('loading-screen').classList.add('hidden');
     });
   }
 });
