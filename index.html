@@ -1707,19 +1707,36 @@ window.updateDiff = (artId, expected, val) => {
 };
 
 window.validerComptage = async () => {
-  const rows=articles.filter(a=>comptageFilter==='Tous'||a.cat===comptageFilter);
-  let changed=0;
+  const rows = articles.filter(a => comptageFilter === 'Tous' || a.cat === comptageFilter);
+  // Snapshot ALL input values BEFORE any Firestore write
+  // (Firebase re-render détruit les inputs pendant la boucle)
+  const snapshots = [];
   for (const art of rows) {
-    const inp=document.getElementById('cpt-'+art.id);
+    const inp = document.getElementById('cpt-' + art.id);
     if (!inp) continue;
-    const counted=parseInt(inp.value)||0, diff=counted-art.qty;
-    if (diff===0) continue;
-    const {id:_,...data}=art;
-    await setDoc(doc(db,'articles',art.id),{...data,qty:counted},{merge:true});
-    await addDoc(collection(db,'history'),{art:art.name,cat:art.cat,type:'comptage',qty:diff,after:counted,note:`Inventaire: ${art.qty}→${counted}`,ts:serverTimestamp()});
+    const counted = parseInt(inp.value);
+    if (isNaN(counted)) continue;
+    if (counted !== art.qty) snapshots.push({ art, counted });
+  }
+
+  if (!snapshots.length) { toast('Aucun écart constaté', 'success'); return; }
+
+  const msg = 'Valider l\'inventaire ?\n\n' + snapshots.length + ' article(s) ont des écarts :\n' +
+    snapshots.map(s => '• ' + s.art.name + ' : ' + s.art.qty + ' → ' + s.counted + ' (' + (s.counted-s.art.qty>=0?'+':'') + (s.counted-s.art.qty) + ')').join('\n');
+  if (!confirm(msg)) return;
+
+  let changed = 0;
+  for (const {art, counted} of snapshots) {
+    const diff = counted - art.qty;
+    const {id:_, ...data} = art;
+    await setDoc(doc(db,'articles',art.id), {...data, qty:counted}, {merge:true});
+    await addDoc(collection(db,'history'), {
+      art:art.name, cat:art.cat, type:'comptage', qty:diff, after:counted,
+      note:'Inventaire: ' + art.qty + '→' + counted, ts:serverTimestamp()
+    });
     changed++;
   }
-  toast(changed>0?`Inventaire validé — ${changed} article${changed>1?'s':''} mis à jour`:'Aucun écart constaté','success');
+  toast('Inventaire validé — ' + changed + ' article(s) mis à jour', 'success');
 };
 
 // ── EXPORT EXCEL ──
